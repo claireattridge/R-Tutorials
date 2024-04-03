@@ -1,0 +1,328 @@
+---
+title: "Making site maps in R"
+author: "Claire Attridge"
+date: "2024-04-02"
+output: html_document
+---
+
+### *An introduction to shapefiles and mapping with 'sf'*
+
+#### Lesson 1: Plotting a clean site map
+
+</br>
+
+#### Step 0) Pulling archived packages
+
+This step is optional because the packages 'maptools' and 'ggsn' and 'rgdal' have been retired
+These packages are useful for plotting map features including north arrows and scalebars
+The functions from these packages are being translated to others, *but* this is an ongoing and incomplete process (as of 2024)
+By pulling these packages from their online archives, we can still use these features in our code at present
+
+```{r, eval=FALSE}
+
+url_maptools <- "https://cran.r-project.org/src/contrib/Archive/maptools/maptools_1.1-8.tar.gz"
+url_ggsn <- "https://cran.r-project.org/src/contrib/Archive/ggsn/ggsn_0.5.0.tar.gz"
+url_rgeos <- "https://cran.r-project.org/src/contrib/Archive/rgeos/rgeos_0.6-4.tar.gz"
+url_rgdal <- "https://cran.r-project.org/src/contrib/Archive/rg/rgdal_1.6-7.tar.gz"
+  
+# repos=NULL indicates that you're not using a repository for installation
+# type=source specifies that it is a source package
+install.packages(url_maptools, type="source", repos=NULL)  
+install.packages(url_ggsn, type="source", repos=NULL)  
+install.packages(url_rgeos, type="source", repos=NULL)  
+install.packages(url_rgdal, type="source", repos=NULL)  
+
+```
+
+Now, we can move onto the preparation for our maps!
+
+</br>
+
+#### Step 1) Loading necessary packages
+
+```{r}
+
+library(tidyverse)
+library(sf)
+library(sp)
+library(ggsn)
+library(rgdal)
+library(MetBrewer)
+
+```
+
+</br>
+
+#### Step 2) Setting the CRS and map bounds
+
+First, we'll create a variable for the WGS84 geographic coordinate system (GCS) (ESPG: 4326).
+Our map and data must first be related to a GCS before undergoing any map projections.
+WGS84 is the standard global GCS that we will use to work with latlong units in decimal degrees (DD).
+
+Next, we'll select the appropriate CRS for our study region!
+Generally, for coastal BC we use the BC/Albers projected coordinate system (PCS) (ESPG: 3005).
+
+We can project our map and data from the GCS system to this PCS system later.
+As a PCS, the BC/Albers system will be specified by eastings and northings rather than latlongs.
+
+
+```{r}
+
+geog <- sf::st_crs(4326) # WGS84
+proj <- sf::st_crs(3005) # BC/Albers
+
+```
+
+Once these variables are set, we need to decide the extent that our map will cover.
+I.e., What range of latitude and longitude should it span?
+
+This will be important for 'zooming in' on a subset area of a larger map file.
+
+
+Let's explore Barkley Sound, Bamfield, in this example!
+
+
+```{r}
+
+# Setting the specifications for latitude (ymax, ymin) and longitude (xmax, xmin) ranges
+# We are specifying these coordinates in DD for a GCS
+ymax <- 48.922
+ymin <- 48.80
+xmax <- -125.05
+xmin <- -125.26
+
+```
+
+Next, we use these specifications to create a 'blank background' for our map.
+Because we specified our map corners
+
+```{r}
+
+bounds <- st_multipoint(matrix(c(xmax,xmin,ymax,ymin),ncol=2)) %>% 
+  st_sfc(crs=geog) %>% # This sets our background in the WGS84 system
+  st_sf() %>%
+  st_transform(proj) # This projects our background into the BC/Albers system
+
+# Let's plot our bounds to see where our map will go
+plot(bounds)
+
+```
+
+
+#### Step 3) Reading in a shapefile
+
+You should download your map shapefile and store it in a sub-folder of your RStudio project.
+
+For this example, we will work with the shapefile of coastal British Columbia from the Hakai Institute (Daniel Okamoto, Jenn Burt), accessible via Github (https://github.com/HakaiInstitute/hakai_guide_to_r/tree/master/data/2_Shapefile).
+
+
+```{r}
+
+# This is the location of the .shp file on my local harddrive. Replace with yours. 
+land <- sf::st_read("./Maps_BC/Hakai_BC/COAST_TEST2.shp")
+
+
+# Let's check the coordinate system of our map
+crs(land)
+# The existing CRS is WGS84 
+
+
+# Let's do a quick base R plot to see what it looks like
+plot(land)
+
+```
+The reason that you see multiple versions of the map, is because there are multiple "attributes" associated with the file. Let's check this out by calling the frame itself
+
+```{r}
+# First we'll check the class
+class(land)
+# We can see that this is already an 'sf' object that contains a dataframe of information
+
+# Next, we'll call the shapefile object
+land
+# This tells us that the .shp is a multipolygon in WGS84 CRS
+# The extent of the file is also specified in decimal degrees (DD)
+
+```
+
+Now, lets project this map from WGS84 to our BC/Albers system
+
+```{r}
+
+land <- land %>%
+  st_transform(proj)
+
+# Let's check the coordinate system of our map again
+crs(land)
+
+# It is now in BC/Albers projection!
+
+```
+
+Finally, let's crop this whole map to only our area of interest in Barkley Sound.
+
+```{r}
+
+land_crop <- land %>%
+  st_crop(st_bbox(bounds)) # This specifies the extent to crop to as our previously set bounds
+
+# Let's plot our new cropped shapefile to see if it looks correct
+plot(land_crop)
+# Nice! It's now only printing the zoom in of Barkley Sound.
+
+# Now, if we want, we can save this new, cropped shapefile of our map.
+# This way we don't have to do steps 1-3 every time we want to edit our map in the future.
+# We would just need to load this new cropped shapefile for future work!
+
+# Save it somewhere within your R Studio project.
+# Make sure to specify the suffix as a shapefile (".shp").
+write_sf(land_crop, "./land_Hakai_crop.shp", overwrite=T)
+
+```
+
+#### Step 4) Loading and prepping your site data
+
+Once your map is in correct CRS and cropped to your region of study, let's pull in our site data.
+
+You can read this is as per usual for a .csv file.
+Your dataframe should at minimum contain:
+i) A site identified
+ii) Latitude values
+iii) Longitude values
+Beyond this, you may have continuous or categorical data associated with each site in other columns.
+
+```{r}
+
+# For an example, let's read in data from my subtidal project sites in Barkley Sound
+# We're accessing a .csv file of site locations from my Github project
+
+urlfile <-"https://raw.githubusercontent.com/claireattridge/kelp_comms_2022/master/MSc_data/Data_new/Final_site_list_2022.csv"
+sites <-read.csv(url(urlfile))
+
+# Let's check out the dataframe to see if everything looks correct
+str(sites)
+
+# Let's make a couple of these character columns into factors for plotting later
+# We'll also remove the columns that we're not interested in right now
+sites_clean <- sites %>%
+  dplyr::select(-c(SiteName_RLS, Original_surveyor, Temp_logger, Acoustic, Ammonium, Survey_date)) %>%
+  mutate(across(where(is.character), as.factor))
+sites_clean
+
+```
+
+Our site dataframe is looking clean and ready to go.
+The next step is to convert this dataframe to a 'sf' spatial object.
+
+```{r}
+
+# We use a function form the 'sf' package to specify what columns the coordinates are in
+# The order should be your longitude column first, then latitude
+sites_sf <- sites_clean %>%
+  st_as_sf(coords = c(4,3))
+
+# Now when we look at our new sf object, you'll see that a 'geometry' column has appeared
+# This column specifies the data type ('POINT') and the combined coordinates as a list in each cell
+sites_sf
+
+```
+This next step is sneaky but important.
+Because we've recorded our GPS coordinates in decimal degrees (DD) for each site using lat/lon values,
+we have to tell R that this sf object originated from a GCS coordinate system.
+We will first specify the origin CRS as a GCS (in this case, WGS84), then we will project into our local PCS (BC/Albers).
+
+```{r}
+
+# First we set the GCS to our variable for the WGS84 code
+st_crs(sites_sf) <- geog 
+# Then we transform our projection into the BC/Albers code
+sites_sf <- st_transform(sites_sf, proj)
+
+# You can always double-check to make sure your CRS transformations were successful
+crs(sites_sf)
+
+# Let's take a look at this data on a plot
+plot(sites_sf)
+# Looks funny without a background reference, but it does appear that the points are reasonably spread for what we expect to see! 
+# It should start to make more sense when we overlay these onto a land form and plot by a single attribute at a time.
+
+```
+
+
+#### Step 4) Putting your map together!
+
+We're going to build our map in 'ggplot' so that we can craft the aesthetics.
+
+```{r}
+
+ggplot(land_crop)+
+  geom_sf(fill = "grey65") +
+  theme_minimal(base_size = 16) +
+  geom_sf(data = sites_sf, shape=23, fill="black", size=2)
+
+```
+Starting to look good! Let's play around with the aesthetics to make it more appealing visually.
+For starters, we should add a north arrow and scale bar. These are necessary map elements.
+
+I also prefer to remove the graticules because they make a basic site location map look too busy.
+
+```{r}
+
+ggplot(land_crop)+
+  geom_sf(fill = "grey65") +
+  theme_minimal(base_size = 14) +
+  geom_sf(data = sites_sf, shape=23, fill="black", size=2) + 
+# Hiding the graticule lines
+    theme(panel.grid.major = element_line(colour = "transparent")) +
+# Adding in a north arrow 
+    ggsn::north(land_crop, 
+        location="topright", 
+        symbol=12, 
+        scale=0.1) +
+# Adding in a scale bar
+    ggsn::scalebar(land_crop,
+               location = "bottomright",
+               transform = F,
+               st.bottom = F,
+               st.size = 3,
+               height = 0.01,
+               dist = 1.5,
+               dist_unit = "km",
+               model = 'NAD83')
+
+```
+Great! Now we can really fiddle around to tweak the details of the axes and text.
+Let's remove the unnecessary axes titles and add site labelers to each point. 
+
+```{r}
+
+ggplot(land_crop)+
+  geom_sf(fill = "grey65") +
+  theme_minimal(base_size = 14) +
+  geom_sf(data = sites_sf, shape=23, fill="black", size=2) + 
+# Labels
+  geom_sf_text(mapping=aes(), data = sites_sf, label = sites_sf$SiteNum, stat="sf_coordinates", inherit.aes=T, size=2, nudge_y=50, nudge_x=-700) + 
+  scale_fill_manual(values=met.brewer("Kandinsky", 2), name="") +
+# Hiding the graticule lines
+    theme(panel.grid.major = element_line(colour = "transparent"),
+          axis.title = element_blank(),
+          axis.text = element_text(size=12, color="black"),
+# We can add a black border for a clean look
+          panel.border = element_rect(colour="black", fill=NA)) +
+# Adding in a north arrow 
+    ggsn::north(land_crop, 
+        location="topright", 
+        symbol=12, 
+        scale=0.1) +
+# Adding in a scale bar
+    ggsn::scalebar(land_crop,
+               location = "bottomright",
+               transform = F,
+               st.bottom = F,
+               st.size = 3,
+               height = 0.01,
+               dist = 1.5,
+               dist_unit = "km",
+               model = 'NAD83')
+
+```
