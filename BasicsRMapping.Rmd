@@ -1,6 +1,6 @@
 ---
 title: "Making site maps in R"
-author: "Claire Attridge"
+author: "Claire Attridge, Stephen Brownlee"
 date: "2024-04-02"
 output: html_document
 ---
@@ -15,8 +15,8 @@ output: html_document
 
 This step is optional because the packages 'maptools' and 'ggsn' and 'rgdal' have been retired
 These packages are useful for plotting map features including north arrows and scalebars
-The functions from these packages are being translated to others, *but* this is an ongoing and incomplete process (as of 2024)
-By pulling these packages from their online archives, we can still use these features in our code at present
+The functions from these packages are being translated to others, *but* this is an ongoing and incomplete process (as of 2024).
+By pulling these packages from their online archives, we can still use these features in our code at present.
 
 ```{r, eval=FALSE}
 
@@ -48,6 +48,7 @@ library(sp)
 library(ggsn)
 library(rgdal)
 library(MetBrewer)
+library(here)
 
 ```
 
@@ -108,22 +109,42 @@ plot(bounds)
 
 ```
 
+</br>
 
 #### Step 3) Reading in a shapefile
 
-You should download your map shapefile and store it in a sub-folder of your RStudio project.
+First we will download a .zip file from my online Github repository to your local folder/project.
+We will then unzip the shapefile items into your local folder/project.
 
-For this example, we will work with the shapefile of coastal British Columbia from the Hakai Institute (Daniel Okamoto, Jenn Burt), accessible via Github (https://github.com/HakaiInstitute/hakai_guide_to_r/tree/master/data/2_Shapefile).
+For this example, the .zip contains the shapefile of coastal British Columbia from the Hakai Institute (Daniel Okamoto, Jenn Burt), accessible via Github (https://github.com/HakaiInstitute/hakai_guide_to_r/tree/master/data/2_Shapefile).
+
+I tend to make use of the "here()" package to create a reproducible workflow.
 
 
 ```{r}
 
-# This is the location of the .shp file on my local harddrive. Replace with yours. 
-land <- sf::st_read("./Maps_BC/Hakai_BC/COAST_TEST2.shp")
+# First, let's check out where our current working directory is
+here::here() 
+
+# Now, we need to create a temp file for storing the .zip location
+temp <- tempfile()
+
+# We can download the .zip file by specifying the URL location and saving this to 'temp' 
+URL <- "https://github.com/claireattridge/R-Tutorials/blob/main/COAST_TEST2.zip"
+download.file(URL, temp)
+
+# Then, we unzip the file so that all of the contents are open in our folder
+unzip(here("COAST_TEST2.zip"))
+# IMPORTANT REMINDER: Shapefiles exist as a collection of files. Aka. you need ALL of those file extensions that go by the same prefix name (e.g., COAST_TEST2) to successful map out the vector data.
+
+
+# Finally we read the shapefile using an 'sf' function
+# here() will specify that the .shp file is within your current directory
+land <- sf::st_read(here("COAST_TEST2.shp"))
 
 
 # Let's check the coordinate system of our map
-crs(land)
+st_crs(land)
 # The existing CRS is WGS84 
 
 
@@ -131,6 +152,7 @@ crs(land)
 plot(land)
 
 ```
+
 The reason that you see multiple versions of the map, is because there are multiple "attributes" associated with the file. Let's check this out by calling the frame itself
 
 ```{r}
@@ -153,7 +175,7 @@ land <- land %>%
   st_transform(proj)
 
 # Let's check the coordinate system of our map again
-crs(land)
+st_crs(land)
 
 # It is now in BC/Albers projection!
 
@@ -180,13 +202,15 @@ write_sf(land_crop, "./land_Hakai_crop.shp", overwrite=T)
 
 ```
 
+</br>
+
 #### Step 4) Loading and prepping your site data
 
 Once your map is in correct CRS and cropped to your region of study, let's pull in our site data.
 
 You can read this is as per usual for a .csv file.
 Your dataframe should at minimum contain:
-i) A site identified
+i) A site identifier
 ii) Latitude values
 iii) Longitude values
 Beyond this, you may have continuous or categorical data associated with each site in other columns.
@@ -226,6 +250,7 @@ sites_sf <- sites_clean %>%
 sites_sf
 
 ```
+
 This next step is sneaky but important.
 Because we've recorded our GPS coordinates in decimal degrees (DD) for each site using lat/lon values,
 we have to tell R that this sf object originated from a GCS coordinate system.
@@ -239,7 +264,7 @@ st_crs(sites_sf) <- geog
 sites_sf <- st_transform(sites_sf, proj)
 
 # You can always double-check to make sure your CRS transformations were successful
-crs(sites_sf)
+st_crs(sites_sf)
 
 # Let's take a look at this data on a plot
 plot(sites_sf)
@@ -248,8 +273,9 @@ plot(sites_sf)
 
 ```
 
+</br>
 
-#### Step 4) Putting your map together!
+#### Step 5) Putting your map together!
 
 We're going to build our map in 'ggplot' so that we can craft the aesthetics.
 
@@ -261,6 +287,7 @@ ggplot(land_crop)+
   geom_sf(data = sites_sf, shape=23, fill="black", size=2)
 
 ```
+
 Starting to look good! Let's play around with the aesthetics to make it more appealing visually.
 For starters, we should add a north arrow and scale bar. These are necessary map elements.
 
@@ -291,6 +318,7 @@ ggplot(land_crop)+
                model = 'NAD83')
 
 ```
+
 Great! Now we can really fiddle around to tweak the details of the axes and text.
 Let's remove the unnecessary axes titles and add site labelers to each point. 
 
@@ -326,3 +354,7 @@ ggplot(land_crop)+
                model = 'NAD83')
 
 ```
+
+
+That's all for now! Stay tuned for part II where we will explore more variations to our map aesthetics, and the use of rasters and spatial calculations. 
+
