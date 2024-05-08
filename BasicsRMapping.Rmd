@@ -113,12 +113,9 @@ plot(bounds)
 
 #### Step 3) Reading in a shapefile
 
-First we will download a .zip file from my online Github repository to your local folder/project.
-We will then unzip the shapefile items into your local folder/project.
+The .zip contains the shapefile of coastal British Columbia from the Hakai Institute (Daniel Okamoto, Jenn Burt), accessible via Github (https://github.com/HakaiInstitute/hakai_guide_to_r/tree/master/data/2_Shapefile).
 
-For this example, the .zip contains the shapefile of coastal British Columbia from the Hakai Institute (Daniel Okamoto, Jenn Burt), accessible via Github (https://github.com/HakaiInstitute/hakai_guide_to_r/tree/master/data/2_Shapefile).
-
-I tend to make use of the "here()" package to create a reproducible workflow.
+Making use of the "here()" package can help to create a reproducible workflow.
 
 
 ```{r}
@@ -230,7 +227,8 @@ str(sites)
 # We'll also remove the columns that we're not interested in right now
 sites_clean <- sites %>%
   dplyr::select(-c(SiteName_RLS, Original_surveyor, Temp_logger, Acoustic, Ammonium, Survey_date)) %>%
-  mutate(across(where(is.character), as.factor))
+  mutate(across(where(is.character), as.factor)) %>%
+  droplevels()
 sites_clean
 
 ```
@@ -330,7 +328,6 @@ ggplot(land_crop)+
   geom_sf(data = sites_sf, shape=23, fill="black", size=2) + 
 # Labels
   geom_sf_text(mapping=aes(), data = sites_sf, label = sites_sf$SiteNum, stat="sf_coordinates", inherit.aes=T, size=2, nudge_y=50, nudge_x=-700) + 
-  scale_fill_manual(values=met.brewer("Kandinsky", 2), name="") +
 # Hiding the graticule lines
     theme(panel.grid.major = element_line(colour = "transparent"),
           axis.title = element_blank(),
@@ -355,6 +352,43 @@ ggplot(land_crop)+
 
 ```
 
+Finally, we can color the points according to the kelp spp. composition of our forests.
+This column has 4 discrete categories (Macro, Mixed, Nereo, NA) where NA indicates no forest present.
+
+```{r}
+
+ggplot(land_crop)+
+  geom_sf(fill = "grey65") +
+  theme_minimal(base_size = 14) +
+# Changing our 'fill' to the column name
+  geom_sf(data = sites_sf, shape=23, size=2, aes(fill=Composition)) + 
+# Labels
+  geom_sf_text(mapping=aes(), data = sites_sf, label = sites_sf$SiteNum, stat="sf_coordinates", inherit.aes=T, size=2, nudge_y=50, nudge_x=-700) + 
+# Specifying the color palette to fill our 3 point categories
+  scale_fill_manual(values=met.brewer("Egypt", 3), name="Composition") +
+# Hiding the graticule lines
+    theme(panel.grid.major = element_line(colour = "transparent"),
+          axis.title = element_blank(),
+          axis.text = element_text(size=12, color="black"),
+# We can add a black border for a clean look
+          panel.border = element_rect(colour="black", fill=NA)) +
+# Adding in a north arrow 
+    ggsn::north(land_crop, 
+        location="topright", 
+        symbol=12, 
+        scale=0.1) +
+# Adding in a scale bar
+    ggsn::scalebar(land_crop,
+               location = "bottomright",
+               transform = F,
+               st.bottom = F,
+               st.size = 3,
+               height = 0.01,
+               dist = 1.5,
+               dist_unit = "km",
+               model = 'NAD83')
+
+```
 
 That's all for now! Stay tuned for part II where we will explore more variations to our map aesthetics, and the use of rasters and spatial calculations. 
 
