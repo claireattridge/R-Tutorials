@@ -20,14 +20,17 @@ By pulling these packages from their online archives, we can still use these fea
 
 ```{r, eval=FALSE}
 
+
 url_maptools <- "https://cran.r-project.org/src/contrib/Archive/maptools/maptools_1.1-8.tar.gz"
 url_ggsn <- "https://cran.r-project.org/src/contrib/Archive/ggsn/ggsn_0.5.0.tar.gz"
 url_rgeos <- "https://cran.r-project.org/src/contrib/Archive/rgeos/rgeos_0.6-4.tar.gz"
-url_rgdal <- "https://cran.r-project.org/src/contrib/Archive/rg/rgdal_1.6-7.tar.gz"
+url_rgdal <- "https://cran.r-project.org/src/contrib/Archive/rgdal/rgdal_1.6-7.tar.gz"
   
 # repos=NULL indicates that you're not using a repository for installation
 # type=source specifies that it is a source package
-install.packages(url_maptools, type="source", repos=NULL)  
+# This ('ggmap') is a dependency to install for ggsn
+install.packages("ggmap")
+install.packages(url_maptools, type="source", repos=NULL) 
 install.packages(url_ggsn, type="source", repos=NULL)  
 install.packages(url_rgeos, type="source", repos=NULL)  
 install.packages(url_rgdal, type="source", repos=NULL)  
